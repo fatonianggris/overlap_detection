@@ -1,0 +1,1 @@
+function [F] = intensity_selection(qq,Image,candidat) 

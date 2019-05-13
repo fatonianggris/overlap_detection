@@ -1,0 +1,178 @@
+clc;
+clear all;
+close all;
+% I = imread('D:\Kuliah\Semester II\Visi Komputer\Program FP VISKOM\overlapping_rekap\16_L_05.JPG');
+% I = imread('D:\Kuliah\Semester II\Visi Komputer\Program FP VISKOM\non-overlapping_rekap\16_L_07.JPG');
+[filename path]=uigetfile({'*.jpg';'*.bmp';'*.jpeg'},'Select the Image:');
+I=imread([path filename]);
+if size(I,3)==3
+    I = rgb2gray(I);
+end
+% I = adapthisteq(I,'NumTiles',[8 8],'clipLimit',0.01);
+[mark R] = mCoordinate(I);
+imshow(R);
+% I = histeq(I);
+addpath('edison_matlab_interface/');
+% figure, imshow(I);
+
+hs = 9;
+hr = 13;
+M = 11;
+[S,L] = msseg(I,hs,hr,M);
+figure, imshow(S);
+title('image clustered S');
+
+Lbaru = padarray(L, [1 1], 'replicate', 'both');
+A = ones(size(Lbaru));
+
+for (i=2:(size(Lbaru,1)-1))
+    for (j=2:(size(Lbaru,2)-1))
+%             % kiri atas
+%             if (Lbaru(i,j) ~= Lbaru(i-1,j-1))
+%                 A(i,j) = 0;
+%             end
+%             % tengah atas
+%             if (Lbaru(i,j) ~= Lbaru(i-1,j))
+%                 A(i,j) = 0;
+%             end
+%             % kanan atas
+%             if (Lbaru(i,j) ~= Lbaru(i-1,j+1))
+%                 A(i,j) = 0;
+%             end
+%             % kiri
+%             if (Lbaru(i,j) ~= Lbaru(i,j-1))
+%                 A(i,j) = 0;
+%             end
+            % kanan
+            if (Lbaru(i,j) ~= Lbaru(i,j+1))
+                A(i,j) = 0;
+            end
+%             % kiri bawah
+%             if (Lbaru(i,j) ~= Lbaru(i+1,j-1))
+%                 A(i,j) = 0;
+%             end
+            % tengah bawah
+            if (Lbaru(i,j) ~= Lbaru(i+1,j))
+                A(i,j) = 0;
+            end
+            % kanan bawah
+            if (Lbaru(i,j) ~= Lbaru(i+1,j+1))
+                A(i,j) = 0;
+            end
+    end
+end
+
+A = A(((2:(size(Lbaru,1)-1))), ((2:(size(Lbaru,2)-1))));
+% Abaru = 1-(bwmorph(1-A, 'skel', Inf));
+% figure, imshow(A);
+% title('image A');
+% figure, imshow(Abaru);
+bwA = im2bw(A);
+qq = regionprops(bwA,'Image','Area','PixelList','Orientation','Extrema','ConvexHull','Centroid');
+
+I = im2single(I);
+imreg = ones(size(I));
+for i=1:(size(A,1))
+    for j=1:(size(A,2))
+        if A(i,j) == 0
+            imreg(i,j,:) = 1;
+        else imreg(i,j,:) = I(i,j,:);
+        end
+    end
+end
+
+
+% figure, imshow(imreg);
+% imshow(imreg);
+% title('image imreg');
+% BW = imread('objek.tif');
+% I = rgb2gray(I);
+
+
+% mencari label region dengan pixel spesifik
+% mark = [6 23;27 86;51 46;105 54;110 38;83 56];
+
+% ketemu = ismember([84 59],qq(71).PixelList)
+%% 
+candidate = [];
+for i=1:(size(mark,1))
+    for j=1:(size(qq,1))
+        ketemu = ismember(mark(i,:),qq(j).PixelList);
+        if ketemu 
+            for t = 1:size(qq(j).PixelList(:,1))
+                if mark(i,1) == qq(j).PixelList(t,1) && mark(i,2) == qq(j).PixelList(t,2)
+%                 mark(i,:)
+%                     mark(i,1)
+%                     qq(j).PixelList(t,1)
+%                     mark(i,2)
+%                     qq(j).PixelList(t,2)
+%                 qq(j).PixelList
+                candidate = [candidate, j];
+                else
+                end
+            end
+        else
+        end
+    end
+end
+candidate = unique(candidate);
+candVer = [];
+n = length(candidate);
+
+for c = 1 : length(candidate)
+    if qq(candidate(c)).Orientation < -45 || qq(candidate(c)).Orientation > 45
+      candVer = [candVer,candidate(c)];
+    end
+end
+
+% n = length(candVer);
+% for c = 1 : n
+%         subplot(1,n,c)
+%         imshow(qq(candVer(c)).Image);
+%         title(['region ke :',num2str(c),]);
+%         hold on
+% end
+% hold off
+
+%% Seleksi Tepi
+n = length(candVer);
+candLolos =[];
+for i = 1:n
+    tepimax = ismember(size(I,1),qq(candVer(i)).PixelList(:,2));
+    tepimax2 = ismember(size(I,2),qq(candVer(i)).PixelList(:,1));
+    tepimin = ismember(1,qq(candVer(i)).PixelList);
+    if tepimax || tepimin || tepimax2
+    else
+        candLolos = [candLolos, candVer(i)];
+    end 
+end
+
+n = length(candLolos);
+kolEps = zeros(n,2);
+eps = zeros(1,n);
+for i = 1 : n
+%     right top
+    RT = round(qq(candLolos(i)).Extrema(3,:));
+    RT = [RT(1,1)+1 RT(1,2)];
+    IRT = S(RT(1,2),RT(1,1));
+%     left bottom
+    LB = round(qq(candLolos(i)).Extrema(7,:));
+    LB = [LB(1,1)-1 LB(1,2)];
+    ILB = S(LB(1,2),LB(1,1));
+% %     eps = abs(IRT-ILB);
+%     kolEps(i,1) = candLolos(i);
+%     kolEps(i,2) = eps;
+    koorIC = round(qq(candLolos(i)).Centroid);
+    IC = S(koorIC(1,2),koorIC(1,1));
+    mu_H = (ILB + IRT)/2;
+    eps(i) = abs(mu_H - IC);
+end
+
+hasil = [candLolos' eps'];
+showCand(candLolos,qq);
+hold off
+figure;
+imshow(I);
+filename
+hasil
+% pp = regionprops(I,'MeanIntensity');
